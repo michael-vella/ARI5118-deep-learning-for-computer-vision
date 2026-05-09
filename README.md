@@ -17,4 +17,6 @@ Assuming that Python is already pre-installed on the host machine.
 
 ## Project Directory
 
-To-do later on.
+TODO.
+
+[Quiz Link (Google Forms)](https://forms.gle/KorA8o9L2ATYVAqC9)
