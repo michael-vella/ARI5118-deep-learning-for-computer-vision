@@ -763,12 +763,12 @@ designed to avoid this while keeping fast computation.
     st.markdown("#### Quick Reference: Activation Function Properties")
 
     table_data = {
-        "Function": ["ReLU", "Leaky ReLU", "ELU", "GELU", "Sigmoid", "Tanh", "SELU", "Swish", "Mish"],
-        "Range":    ["[0,∞)", "(-∞,∞)", "(-α,∞)", "(-∞,∞)", "(0,1)", "(-1,1)", "(-αλ,∞)", "(-∞,∞)", "(-∞,∞)"],
-        "Smooth":   ["No","No","Yes (x≥0: no)","Yes","Yes","Yes","Yes","Yes","Yes"],
-        "Zero-centred": ["No","No","Approx","Yes","No","Yes","No","No","No"],
-        "Can saturate": ["One-sided","One-sided","Neg only","No","Both","Both","No","No","No"],
-        "Dying neurons": ["Yes","No","No","No","No","No","No","No","No"],
+        "Function": ["ReLU", "Leaky ReLU", "GELU", "Sigmoid", "Tanh"],
+        "Range":    ["[0,∞)", "(-∞,∞)", "(-∞,∞)", "(0,1)", "(-1,1)"],
+        "Smooth":   ["No","No","Yes","Yes","Yes"],
+        "Zero-centred": ["No","No","Yes","No","Yes"],
+        "Can saturate": ["One-sided","One-sided","No","Both","Both"],
+        "Dying neurons": ["Yes","No","No","No","No"],
     }
     col_names = list(table_data.keys())
     rows = list(zip(*table_data.values()))
