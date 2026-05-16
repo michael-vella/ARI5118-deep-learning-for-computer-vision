@@ -583,43 +583,31 @@ with tab3:
 Activation functions introduce non-linearity that allows deep networks to learn complex mappings.
 The <b>derivative</b> governs gradient flow — flat regions (saturation) cause vanishing gradients.
 <b>Dying ReLU</b> occurs when a neuron permanently outputs zero because its weights push it
-into the negative half-plane. Modern activations (GELU, Swish, Mish) are smooth approximations
+into the negative half-plane. Modern activations (GELU) are smooth approximations
 designed to avoid this while keeping fast computation.
 </div>
 """, unsafe_allow_html=True)
 
-    ca1, ca2 = st.columns([1, 1])
-    with ca1:
-        st.markdown("#### ① Primary Activation")
-        act_a_name = st.selectbox("Activation A",
-                                  list(ACTIVATIONS.keys()), index=0, key="a_a")
-        x_range_a  = st.slider("X range", -10.0, 0.0, -5.0, key="a_xmin"), \
-                     st.slider("X range (max)", 0.0, 10.0, 5.0, key="a_xmax")
-        if act_a_name == "Leaky ReLU":
-            alpha_a = st.slider("α (Leaky ReLU)", 0.001, 0.5, 0.1, 0.001, key="a_alpha_a")
-        elif act_a_name == "ELU":
-            alpha_a = st.slider("α (ELU)", 0.1, 3.0, 1.0, 0.1, key="a_alpha_elu")
-        elif act_a_name == "Swish":
-            beta_a  = st.slider("β (Swish)", 0.1, 5.0, 1.0, 0.1, key="a_beta_a")
-        show_deriv = st.toggle("Show derivative", value=True, key="a_deriv")
+ 
+    st.markdown("#### ① Primary Activation")
+    act_a_name = st.selectbox("Activation A",
+                            list(ACTIVATIONS.keys()), index=0, key="a_a")
+    if act_a_name == "Leaky ReLU":
+        alpha_a = st.slider("α (Leaky ReLU)", 0.001, 0.5, 0.1, 0.001, key="a_alpha_a")
 
-    with ca2:
-        st.markdown("#### ② Comparison Activation")
-        act_b_name = st.selectbox("Activation B",
-                                  list(ACTIVATIONS.keys()), index=3, key="a_b")
-        if act_b_name == "Leaky ReLU":
-            alpha_b = st.slider("α (Leaky ReLU B)", 0.001, 0.5, 0.1, 0.001, key="a_alpha_b")
-        elif act_b_name == "ELU":
-            alpha_b = st.slider("α (ELU B)", 0.1, 3.0, 1.0, 0.1, key="a_alpha_elu_b")
-        elif act_b_name == "Swish":
-            beta_b  = st.slider("β (Swish B)", 0.1, 5.0, 1.0, 0.1, key="a_beta_b")
 
-        st.markdown("#### Dead Neuron Simulator")
-        dead_thresh = st.slider("Input shift (dying ReLU demo)",
-                                -5.0, 0.0, -2.0, 0.1, key="a_dead")
+    st.markdown("#### ② Comparison Activation")
+    act_b_name = st.selectbox("Activation B",
+                            list(ACTIVATIONS.keys()), index=3, key="a_b")
+    if act_b_name == "Leaky ReLU":
+        alpha_b = st.slider("α (Leaky ReLU B)", 0.001, 0.5, 0.1, 0.001, key="a_alpha_b")
+
+    st.markdown("#### Dead Neuron Simulator")
+    dead_thresh = st.slider("Input shift (dying ReLU demo)",
+                            -8.0, 0.0, -2.0, 0.5, key="a_dead")
 
     # ── Build x axis ──────────────────────────────────────────
-    xmin_a, xmax_a = x_range_a
+    xmin_a, xmax_a = -8, 8
     xs = np.linspace(xmin_a, xmax_a, 800)
 
     # Resolve functions with current parameters
@@ -651,7 +639,7 @@ designed to avoid this while keeping fast computation.
     ya_dead = fn_map["ReLU"](xs_dead)
 
     # ── Figure ────────────────────────────────────────────────
-    n_rows = 3 if show_deriv else 2
+    n_rows = 3
     fig4, axes4 = plt.subplots(n_rows, 3, figsize=(13, 3.2 * n_rows), facecolor=DARK_BG)
     if n_rows == 2:
         axes4 = np.vstack([axes4, [None, None, None]])
@@ -690,7 +678,7 @@ designed to avoid this while keeping fast computation.
     sample = rng2.normal(0, 1.5, 3000)
 
     ax_da = axes4[1, 0]
-    ax_da.hist(sample, bins=50, color=TEXT_CLR, alpha=0.4, density=True, label="Input (N~(0,1.5))")
+    ax_da.hist(sample, bins=50, color=TEXT_CLR, alpha=0.4, density=True, label=r"$x_i \sim \mathcal{N}(0,\ 1.5^2),\ n=3000$")
     ax_da.hist(fn_map[act_a_name](sample), bins=50, color=clr_a, alpha=0.7,
                density=True, label=f"After {act_a_name}")
     ax_da.set_title("Input → Output distribution (A)", fontsize=9, color=TEXT_CLR)
@@ -707,109 +695,48 @@ designed to avoid this while keeping fast computation.
 
     # Dead neuron demo
     ax_dn = axes4[1, 2]
-    ax_dn.plot(xs, relu(xs), color=ACCENT3, lw=2, alpha=0.5, label="ReLU  (no shift)")
-    ax_dn.plot(xs, ya_dead, color=ACCENT2, lw=2.5,
-               label=f"ReLU  (shift={dead_thresh:+.1f})")
     dead_fraction = (xs_dead < 0).mean()
-    ax_dn.fill_between(xs, ya_dead, 0,
-                       where=(xs_dead < 0), color=ACCENT2, alpha=0.15,
-                       label=f"Dead zone ({dead_fraction*100:.0f}%)")
+    dead_x_cutoff = -dead_thresh  # the x value where shifted ReLU wakes up
+    ax_dn.axvspan(xmin_a, dead_x_cutoff, color=ACCENT2, alpha=0.15, label=f"Dead zone ({dead_fraction*100:.0f}%)")
+
+    # Plot the two ReLUs on top
+    ax_dn.plot(xs, relu(xs),      color=ACCENT3, lw=2, alpha=0.5, label="ReLU (no shift)")
+    ax_dn.plot(xs, ya_dead,       color=ACCENT2, lw=2.5, label=f"ReLU (shift={dead_thresh:+.1f})")
     ax_dn.axhline(0, color=GRID_CLR, lw=0.8); ax_dn.axvline(0, color=GRID_CLR, lw=0.8)
     ax_dn.set_title(f"Dying ReLU: {dead_fraction*100:.0f}% dead", fontsize=9, color=TEXT_CLR)
     ax_dn.legend(fontsize=7, facecolor=CARD_BG, edgecolor=GRID_CLR, labelcolor=TEXT_CLR)
     ax_dn.set_xlabel("x"); ax_dn.set_ylabel("ReLU(x + shift)")
 
     # Row 2: Derivatives
-    if show_deriv:
-        ax_dfa = axes4[2, 0]
-        ax_dfa.plot(xs, dya, color=clr_a, lw=2)
-        ax_dfa.axhline(0, color=GRID_CLR, lw=0.8)
-        ax_dfa.axhline(1, color=GRID_CLR, lw=0.5, linestyle=":")
-        ax_dfa.fill_between(xs, dya, 0, where=(np.abs(dya) < 0.05),
-                            color=ACCENT2, alpha=0.3, label="Saturation zone")
-        ax_dfa.set_title(f"f′(x)  — {act_a_name}", fontsize=9, color=TEXT_CLR)
-        ax_dfa.legend(fontsize=7, facecolor=CARD_BG, edgecolor=GRID_CLR, labelcolor=TEXT_CLR)
-        ax_dfa.set_xlabel("x"); ax_dfa.set_ylabel("f′(x)")
+    ax_dfa = axes4[2, 0]
+    ax_dfa.plot(xs, dya, color=clr_a, lw=2)
+    ax_dfa.axhline(0, color=GRID_CLR, lw=0.8)
+    ax_dfa.axhline(1, color=GRID_CLR, lw=0.5, linestyle=":")
+    ax_dfa.fill_between(xs, dya, 0, where=(np.abs(dya) < 0.05),
+                        color=ACCENT2, alpha=0.3, label="Saturation zone")
+    ax_dfa.set_title(f"f′(x)  — {act_a_name}", fontsize=9, color=TEXT_CLR)
+    ax_dfa.legend(fontsize=7, facecolor=CARD_BG, edgecolor=GRID_CLR, labelcolor=TEXT_CLR)
+    ax_dfa.set_xlabel("x"); ax_dfa.set_ylabel("f′(x)")
 
-        ax_dfb = axes4[2, 1]
-        ax_dfb.plot(xs, dyb, color=clr_b, lw=2)
-        ax_dfb.axhline(0, color=GRID_CLR, lw=0.8)
-        ax_dfb.axhline(1, color=GRID_CLR, lw=0.5, linestyle=":")
-        ax_dfb.fill_between(xs, dyb, 0, where=(np.abs(dyb) < 0.05),
-                            color=ACCENT2, alpha=0.3, label="Saturation zone")
-        ax_dfb.set_title(f"f′(x)  — {act_b_name}", fontsize=9, color=TEXT_CLR)
-        ax_dfb.legend(fontsize=7, facecolor=CARD_BG, edgecolor=GRID_CLR, labelcolor=TEXT_CLR)
-        ax_dfb.set_xlabel("x"); ax_dfb.set_ylabel("f′(x)")
+    ax_dfb = axes4[2, 1]
+    ax_dfb.plot(xs, dyb, color=clr_b, lw=2)
+    ax_dfb.axhline(0, color=GRID_CLR, lw=0.8)
+    ax_dfb.axhline(1, color=GRID_CLR, lw=0.5, linestyle=":")
+    ax_dfb.fill_between(xs, dyb, 0, where=(np.abs(dyb) < 0.05),
+                        color=ACCENT2, alpha=0.3, label="Saturation zone")
+    ax_dfb.set_title(f"f′(x)  — {act_b_name}", fontsize=9, color=TEXT_CLR)
+    ax_dfb.legend(fontsize=7, facecolor=CARD_BG, edgecolor=GRID_CLR, labelcolor=TEXT_CLR)
+    ax_dfb.set_xlabel("x"); ax_dfb.set_ylabel("f′(x)")
 
-        # Derivative overlay
-        ax_dov = axes4[2, 2]
-        ax_dov.plot(xs, dya, color=clr_a, lw=2, label=f"f′  {act_a_name}")
-        ax_dov.plot(xs, dyb, color=clr_b, lw=2, linestyle="--", label=f"f′  {act_b_name}")
-        ax_dov.axhline(0, color=GRID_CLR, lw=0.8)
-        ax_dov.set_title("Derivative overlay", fontsize=9, color=TEXT_CLR)
-        ax_dov.legend(fontsize=8, facecolor=CARD_BG, edgecolor=GRID_CLR, labelcolor=TEXT_CLR)
-        ax_dov.set_xlabel("x"); ax_dov.set_ylabel("f′(x)")
+    # Derivative overlay
+    ax_dov = axes4[2, 2]
+    ax_dov.plot(xs, dya, color=clr_a, lw=2, label=f"f′  {act_a_name}")
+    ax_dov.plot(xs, dyb, color=clr_b, lw=2, linestyle="--", label=f"f′  {act_b_name}")
+    ax_dov.axhline(0, color=GRID_CLR, lw=0.8)
+    ax_dov.set_title("Derivative overlay", fontsize=9, color=TEXT_CLR)
+    ax_dov.legend(fontsize=8, facecolor=CARD_BG, edgecolor=GRID_CLR, labelcolor=TEXT_CLR)
+    ax_dov.set_xlabel("x"); ax_dov.set_ylabel("f′(x)")
 
     fig4.tight_layout(pad=1.5)
     apply_dark_theme(fig4, [a for a in axes4.ravel() if a is not None])
     st.image(fig_to_img(fig4), use_container_width=True)
-
-    # ── Summary table ─────────────────────────────────────────
-    st.markdown("#### Quick Reference: Activation Function Properties")
-
-    table_data = {
-        "Function": ["ReLU", "Leaky ReLU", "GELU", "Sigmoid", "Tanh"],
-        "Range":    ["[0,∞)", "(-∞,∞)", "(-∞,∞)", "(0,1)", "(-1,1)"],
-        "Smooth":   ["No","No","Yes","Yes","Yes"],
-        "Zero-centred": ["No","No","Yes","No","Yes"],
-        "Can saturate": ["One-sided","One-sided","No","Both","Both"],
-        "Dying neurons": ["Yes","No","No","No","No"],
-    }
-    col_names = list(table_data.keys())
-    rows = list(zip(*table_data.values()))
-
-    # Render as HTML table
-    html_rows = ""
-    for row in rows:
-        cells = ""
-        for i, cell in enumerate(row):
-            clr = ""
-            if i > 0:
-                if cell in ("Yes", "Both"): clr = "color:#ff6584;"
-                elif cell in ("No", "No"): clr = "color:#43e97b;"
-                elif "Approx" in cell or "sided" in cell: clr = "color:#f7971e;"
-            cells += f"<td style='padding:5px 12px;border-bottom:1px solid #2a2a40;{clr}'>{cell}</td>"
-        html_rows += f"<tr>{cells}</tr>"
-
-    header_cells = "".join(
-        f"<th style='padding:6px 12px;color:#a78bfa;font-weight:600;text-align:left;border-bottom:2px solid #6c63ff;'>{h}</th>"
-        for h in col_names
-    )
-
-    st.markdown(f"""
-<div style='overflow-x:auto;'>
-<table style='border-collapse:collapse;width:100%;font-family:DM Mono,monospace;
-              font-size:0.78rem;color:#c8c8e8;background:#1a1a26;border-radius:8px;'>
-  <thead><tr>{header_cells}</tr></thead>
-  <tbody>{html_rows}</tbody>
-</table>
-</div>
-""", unsafe_allow_html=True)
-
-    st.markdown("&nbsp;")
-    ic3, ic4 = st.columns(2)
-    with ic3:
-        st.markdown("""
-<div class='info-card'>
-<b>ReLU</b> is fast and effective but suffers from <b>dying neurons</b>: if a neuron's
-pre-activation is always negative, its gradient is always zero, freezing its weights.
-Leaky ReLU, ELU, and SELU all address this with a small non-zero slope for x&lt;0.
-</div>""", unsafe_allow_html=True)
-    with ic4:
-        st.markdown("""
-<div class='info-card'>
-<b>GELU</b> (used in BERT, GPT, ViT) and <b>Swish</b> (MobileNetV3, EfficientNet) are
-smooth, non-monotonic activations that empirically outperform ReLU on many benchmarks.
-They weight inputs by their own probability under a Gaussian, gating small activations
-rather than hard-clipping them.
-</div>""", unsafe_allow_html=True)
