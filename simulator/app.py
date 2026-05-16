@@ -300,26 +300,21 @@ Pooling downsamples a feature map by summarising local regions.
 </div>
 """, unsafe_allow_html=True)
 
-    # ── Controls ──────────────────────────────────────────────
-    col_ctrl, col_cmp = st.columns([1, 1])
+    st.markdown("#### ① Primary Configuration")
+    fm_style = st.selectbox(
+        "Feature map pattern",
+        ["Random Noise", "Gaussian Blobs", "Gradient", "Checkerboard", "Edges"],
+        key="p_style"
+    )
+    fm_size = st.slider("Feature map size (H=W)",  8, 32, 32, 2, key="p_size")
+    pool_mode = st.selectbox("Pooling type", ["Max", "Average"], key="p_mode")
+    kernel_sz = st.slider("Kernel size K", 2, 6, 2, key="p_kernel")
+    stride = st.slider("Stride S", 1, 4, 2, key="p_stride")
 
-    with col_ctrl:
-        st.markdown("#### ① Primary Configuration")
-        fm_style = st.selectbox(
-            "Feature map pattern",
-            ["Random Noise", "Gaussian Blobs", "Gradient", "Checkerboard", "Edges"],
-            key="p_style"
-        )
-        fm_size = st.slider("Feature map size (H=W)",  8, 32, 32, 2, key="p_size")
-        pool_mode = st.selectbox("Pooling type", ["Max", "Average"], key="p_mode")
-        kernel_sz = st.slider("Kernel size K", 2, 6, 2, key="p_kernel")
-        stride = st.slider("Stride S", 1, 4, 2, key="p_stride")
-
-    with col_cmp:
-        st.markdown("#### ② Comparison Configuration")
-        pool_mode2 = st.selectbox("Pooling type (B)", ["Average", "Max"], key="p_mode2")
-        kernel_sz2 = st.slider("Kernel size K (B)", 2, 6, 2, key="p_kernel2")
-        stride2 = st.slider("Stride S (B)", 1, 4, 2, key="p_stride2")
+    st.markdown("#### ② Comparison Configuration")
+    pool_mode2 = st.selectbox("Pooling type (B)", ["Average", "Max"], key="p_mode2")
+    kernel_sz2 = st.slider("Kernel size K (B)", 2, 6, 2, key="p_kernel2")
+    stride2 = st.slider("Stride S (B)", 1, 4, 2, key="p_stride2")
 
     # ── Compute ───────────────────────────────────────────────
     fm = make_test_feature_map(fm_style, fm_size)
