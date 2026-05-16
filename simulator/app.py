@@ -119,6 +119,7 @@ ACCENT1   = "#6c63ff"   # violet
 ACCENT2   = "#ff6584"   # rose
 ACCENT3   = "#43e97b"   # green
 ACCENT4   = "#f7971e"   # amber
+ACCENT5 = "#888899" # grey
 
 def apply_dark_theme(fig, axes_list=None):
     """Apply the dark theme to a matplotlib figure."""
@@ -278,13 +279,13 @@ st.markdown("""
   </span>
 </h1>
 <p style='color:#5050a0;font-family:DM Mono,monospace;font-size:0.82rem;margin-top:4px;'>
-  ARI5118 · Topic 2 · Streamlit · Author: michael.vella.20@um.edu.mt
+  ARI5118 · Topic 2 · Author: michael.vella.20@um.edu.mt
 </p>
 """, unsafe_allow_html=True)
 
 tab1, tab2, tab3 = st.tabs([
     "🟦  Pooling Explorer",
-    "📊  Normalisation Lab",
+    "📊  Batch Normalisation Lab",
     "⚡  Activation Functions",
 ])
 
@@ -373,204 +374,201 @@ Pooling downsamples a feature map by summarising local regions.
 #  TAB 2 ── NORMALISATION LAB
 # ═══════════════════════════════════════════════════════════════
 with tab2:
-    st.markdown("### Normalisation — Why, How, and Which?")
+    st.markdown("### Batch Normalisation")
     st.markdown("""
 <div class='info-card'>
-Normalisation stabilises training by controlling the distribution of activations.
-Different schemes normalise over <b>different axes</b> of the (N, C, H, W) tensor.
-Adjust ε (epsilon) and observe how it guards against division by zero when variance collapses.
+<b>Batch Normalisation</b> stabilises training by normalising each channel's activations
+across the batch dimension. For a tensor of shape <b>(N, C, H, W)</b>, it computes the
+mean μ and variance σ² over the <b>N, H, W</b> axes — independently per channel C —
+then applies <b>x̂ = (x − μ) / √(σ² + ε)</b>. The learnable parameters γ (scale)
+and β (shift) restore expressive power after normalisation. Below, we work with a
+<b>single channel's values across the batch</b> — the simplest case — so you can trace
+each number through every step.
 </div>
 """, unsafe_allow_html=True)
+ 
+    
+    st.markdown("#### Input Batch")
+    preset = st.selectbox(
+        "Preset distribution",
+        ["Standard Normal", "Custom sliders", "High Variance", "Skewed", "Near-Zero"],
+        key="n_preset"
+    )
 
-    cn1, cn2 = st.columns([1, 1])
-    with cn1:
-        st.markdown("#### ① Primary Normalisation")
-        norm_a = st.selectbox("Method A",
-                              ["Batch Norm", "Layer Norm", "Instance Norm", "Group Norm"],
-                              key="n_a")
-        eps_a  = st.select_slider("ε (epsilon) A",
-                                  options=[1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 0.01, 0.1],
-                                  value=1e-5, key="n_eps_a",
-                                  format_func=lambda v: f"{v:.0e}")
-        if norm_a == "Group Norm":
-            n_groups_a = st.slider("Num groups G (A)", 1, 8, 4, key="n_ga")
-        dist_a = st.selectbox("Input distribution A",
-                              ["Standard Normal", "Skewed", "Bimodal",
-                               "High Variance", "Near-Zero"], key="n_dist_a")
+    N = 4
+    st.metric("Batch size N", N)
 
-    with cn2:
-        st.markdown("#### ② Comparison Normalisation")
-        norm_b = st.selectbox("Method B",
-                              ["Layer Norm", "Batch Norm", "Instance Norm", "Group Norm"],
-                              key="n_b")
-        eps_b  = st.select_slider("ε (epsilon) B",
-                                  options=[1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 0.01, 0.1],
-                                  value=1e-5, key="n_eps_b",
-                                  format_func=lambda v: f"{v:.0e}")
-        if norm_b == "Group Norm":
-            n_groups_b = st.slider("Num groups G (B)", 1, 8, 2, key="n_gb")
-        batch_sz = st.slider("Batch size N", 2, 32, 8, key="n_bs")
-
-    # ── Synthesise data ──────────────────────────────────────
-    rng = np.random.default_rng(7)
-    N, C, H, W = batch_sz, 8, 4, 4
-
-    def make_dist(style, shape):
-        rng2 = np.random.default_rng(99)
-        if style == "Standard Normal":
-            return rng2.normal(0, 1, shape).astype(np.float32)
-        elif style == "Skewed":
-            return (rng2.exponential(1, shape) - 1).astype(np.float32)
-        elif style == "Bimodal":
-            h = shape[0] // 2
-            return np.concatenate([
-                rng2.normal(-2, 0.5, (h,) + shape[1:]),
-                rng2.normal(+2, 0.5, (shape[0]-h,) + shape[1:])
-            ], axis=0).astype(np.float32)
-        elif style == "High Variance":
-            return rng2.normal(0, 5, shape).astype(np.float32)
+    rng_default = np.random.default_rng(7)
+    if preset == "Custom sliders":
+        st.markdown("**Set each value manually:**")
+        defaults = np.round(rng_default.uniform(-5, 5, N), 1).tolist()
+        raw = np.array([
+            st.slider(f"x_{i+1}", -10.0, 10.0, defaults[i], 0.1, key=f"n_v{i}")
+            for i in range(N)
+        ], dtype=np.float32)
+    else:
+        rng2 = np.random.default_rng(7)
+        if preset == "Standard Normal":
+            raw = rng2.normal(0, 1, N).astype(np.float32)
+        elif preset == "High Variance":
+            raw = rng2.normal(0, 5, N).astype(np.float32)
+        elif preset == "Skewed":
+            raw = (rng2.exponential(2, N) - 1).astype(np.float32)
         else:  # Near-Zero
-            return rng2.normal(0, 0.01, shape).astype(np.float32)
-
-    x_data = make_dist(dist_a, (N, C, H, W))
-
-    # Apply normalisation A
-    if norm_a == "Batch Norm":
-        x_a, mu_a, var_a = batch_norm(x_data, eps=eps_a)
-    elif norm_a == "Layer Norm":
-        x_a, mu_a, var_a = layer_norm(x_data, eps=eps_a)
-    elif norm_a == "Instance Norm":
-        x_a, mu_a, var_a = instance_norm(x_data, eps=eps_a)
-    else:
-        ng = n_groups_a if 'n_groups_a' in dir() else 4
-        ng = min(ng, C)
-        while C % ng != 0: ng -= 1
-        x_a, mu_a, var_a = group_norm(x_data, ng, eps=eps_a)
-
-    # Apply normalisation B
-    if norm_b == "Batch Norm":
-        x_b, mu_b, var_b = batch_norm(x_data, eps=eps_b)
-    elif norm_b == "Layer Norm":
-        x_b, mu_b, var_b = layer_norm(x_data, eps=eps_b)
-    elif norm_b == "Instance Norm":
-        x_b, mu_b, var_b = instance_norm(x_data, eps=eps_b)
-    else:
-        ng2 = n_groups_b if 'n_groups_b' in dir() else 2
-        ng2 = min(ng2, C)
-        while C % ng2 != 0: ng2 -= 1
-        x_b, mu_b, var_b = group_norm(x_data, ng2, eps=eps_b)
-
-    # ── Metrics ───────────────────────────────────────────────
-    ma, mb, mc, md = st.columns(4)
-    ma.metric("Input  μ",  f"{x_data.mean():.3f}")
-    mb.metric("Input  σ",  f"{x_data.std():.3f}")
-    mc.metric("Output A μ", f"{x_a.mean():.4f}")
-    md.metric("Output A σ", f"{x_a.std():.4f}")
-
-    # ── Figure ────────────────────────────────────────────────
-    fig2, axes = plt.subplots(2, 4, figsize=(13, 6), facecolor=DARK_BG)
-    fig2.suptitle("Normalisation Comparison", color=TEXT_CLR, fontsize=11, y=1.01)
-    apply_dark_theme(fig2, axes.ravel())
-
-    # Row 0: input and A
-    # Row 1: B and stats
-
-    def plot_dist_row(ax_hist, ax_heat, data, label, color):
-        flat = data.ravel()
-        ax_hist.hist(flat, bins=40, color=color, alpha=0.8, density=True)
-        ax_hist.axvline(flat.mean(), color="white", lw=1.2, linestyle="--",
-                        label=f"μ={flat.mean():.2f}")
-        ax_hist.axvline(flat.mean()+flat.std(), color="#f9ca24", lw=0.8,
-                        linestyle=":", label=f"σ={flat.std():.2f}")
-        ax_hist.axvline(flat.mean()-flat.std(), color="#f9ca24", lw=0.8, linestyle=":")
-        ax_hist.set_title(label, fontsize=9, color=TEXT_CLR)
-        ax_hist.legend(fontsize=7, facecolor=CARD_BG, edgecolor=GRID_CLR,
-                       labelcolor=TEXT_CLR)
-        ax_hist.set_xlabel("Activation value", fontsize=8)
-
-        # Show spatial heatmap for sample 0, channel 0
-        im = ax_heat.imshow(data[0, 0], cmap="RdBu_r", aspect="auto")
-        ax_heat.set_title(f"{label}  [N=0, C=0]", fontsize=8, color=TEXT_CLR)
-        ax_heat.set_xticks([]); ax_heat.set_yticks([])
-        plt.colorbar(im, ax=ax_heat, fraction=0.046, pad=0.04).ax.tick_params(
-            labelsize=7, colors=TEXT_CLR)
-
-    plot_dist_row(axes[0, 0], axes[0, 1], x_data, "Input Distribution", TEXT_CLR)
-    plot_dist_row(axes[0, 2], axes[0, 3], x_a,    f"After {norm_a}", ACCENT1)
-    plot_dist_row(axes[1, 0], axes[1, 1], x_b,    f"After {norm_b}", ACCENT3)
-
-    # Residual distribution (A vs B)
-    diff_norm = x_a - x_b
-    axes[1, 2].hist(diff_norm.ravel(), bins=40, color=ACCENT2, alpha=0.8, density=True)
-    axes[1, 2].set_title(f"Δ {norm_a} − {norm_b}", fontsize=9, color=TEXT_CLR)
-    axes[1, 2].axvline(0, color="white", lw=1, linestyle="--")
-    axes[1, 2].set_xlabel("Difference", fontsize=8)
-
-    # Channel-wise variance after norm A and B
-    var_per_ch_a = x_a.var(axis=(0, 2, 3))  # (C,)
-    var_per_ch_b = x_b.var(axis=(0, 2, 3))
-    ch_idx = np.arange(C)
-    axes[1, 3].bar(ch_idx - 0.2, var_per_ch_a, 0.35, color=ACCENT1, alpha=0.85,
-                   label=norm_a)
-    axes[1, 3].bar(ch_idx + 0.2, var_per_ch_b, 0.35, color=ACCENT3, alpha=0.85,
-                   label=norm_b)
-    axes[1, 3].set_title("Per-channel σ² (after norm)", fontsize=9, color=TEXT_CLR)
-    axes[1, 3].set_xlabel("Channel", fontsize=8)
-    axes[1, 3].legend(fontsize=7, facecolor=CARD_BG, edgecolor=GRID_CLR,
+            raw = rng2.normal(0, 0.05, N).astype(np.float32)
+        st.info(f"Values: {np.round(raw, 2).tolist()}")
+ 
+    
+    st.markdown("#### Parameters")
+    eps = st.select_slider("ε (epsilon)",
+                            options=[1e-8, 1e-5, 1e-3, 0.01, 0.1, 0.5, 1.0],
+                            value=1e-5, key="n_eps",
+                            format_func=lambda v: f"{v:.0e}" if v < 0.01 else str(v),
+                            help="Added to variance before dividing — prevents ÷0")
+    gamma = st.slider("γ (scale)",  0.1, 3.0, 1.0, 0.1, key="n_gamma",
+                        help="Learnable scale applied after normalisation")
+    beta  = st.slider("β (shift)", -3.0, 3.0, 0.0, 0.1, key="n_beta",
+                        help="Learnable shift applied after normalisation")
+    
+    highlight = st.selectbox("Highlight one value",
+                                [f"x_{i+1}" for i in range(N)],
+                                key="n_hi",
+                                help="Trace this value through all four steps")
+    hi = int(highlight.split("_")[1]) - 1  # 0-based index
+ 
+ 
+    # ── Batch Norm — step by step ──────────────────────────────
+    mu     = raw.mean()                        # scalar
+    var    = raw.var()                         # scalar (biased estimator)
+    x_norm = (raw - mu) / np.sqrt(var + eps)  # normalised: x̂
+    x_out  = gamma * x_norm + beta            # scaled and shifted: y
+ 
+    # ── Metrics strip ─────────────────────────────────────────
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1.metric("μ (mean)",      f"{mu:.3f}")
+    m2.metric("σ² (variance)", f"{var:.3f}")
+    m3.metric("σ (std)",       f"{np.sqrt(var):.3f}")
+    m4.metric("ε",             f"{eps:.0e}")
+    m5.metric("γ",             f"{gamma:.1f}")
+    m6.metric("β",             f"{beta:.1f}")
+ 
+    # ── Figure: 4-step bar charts ─────────────────────────────
+    labels = [f"x_{i+1}" for i in range(N)]
+    x_pos  = np.arange(N)
+ 
+    def annotate_bars_local(ax, values, fontsize=8):
+        """Write the numeric value above/below each bar."""
+        y_range = max(ax.get_ylim()[1] - ax.get_ylim()[0], 0.1)
+        offset  = y_range * 0.04
+        for i, v in enumerate(values):
+            ax.text(i, v + offset if v >= 0 else v - offset * 2,
+                    f"{v:.2f}", ha="center",
+                    va="bottom" if v >= 0 else "top",
+                    color="white", fontsize=fontsize, fontweight="bold")
+ 
+    def draw_step(ax, values, title, formula, base_color, step_num):
+        """One step as an annotated bar chart. Pink bar = highlighted value."""
+        colors     = [base_color] * N
+        colors[hi] = "#ff6584"
+        bars = ax.bar(x_pos, values, color=colors, width=0.6,
+                      edgecolor=GRID_CLR, linewidth=0.8, zorder=3)
+        ax.axhline(0, color=TEXT_CLR, lw=0.8, linestyle="-", alpha=0.4)
+ 
+        if step_num == 1:
+            ax.axhline(mu, color=ACCENT4, lw=1.5, linestyle="--",
+                       label=f"μ = {mu:.2f}", zorder=4)
+            ax.legend(fontsize=7.5, facecolor=CARD_BG, edgecolor=GRID_CLR,
+                      labelcolor=TEXT_CLR, loc="upper right")
+ 
+        if step_num == 3:
+            ax.axhspan(-1, 1, color=ACCENT3, alpha=0.08, zorder=0, label="±1σ")
+            ax.axhline( 1, color=ACCENT3, lw=0.8, linestyle=":", alpha=0.6)
+            ax.axhline(-1, color=ACCENT3, lw=0.8, linestyle=":", alpha=0.6)
+            ax.legend(fontsize=7.5, facecolor=CARD_BG, edgecolor=GRID_CLR,
                       labelcolor=TEXT_CLR)
-
-    fig2.tight_layout()
-    apply_dark_theme(fig2, axes.ravel())
+ 
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(labels, fontsize=8, color=TEXT_CLR)
+        ax.set_title(f"Step {step_num}: {title}\n{formula}",
+                     fontsize=8.5, color=TEXT_CLR, pad=8)
+        annotate_bars_local(ax, values)
+        bars[hi].set_edgecolor("white")
+        bars[hi].set_linewidth(2.5)
+ 
+    fig2, axes2 = plt.subplots(1, 4, figsize=(14, 4.5), facecolor=DARK_BG)
+    apply_dark_theme(fig2, axes2)
+ 
+    draw_step(axes2[0], raw,       "Raw input",      "x",
+              ACCENT5, 1)
+    draw_step(axes2[1], raw - mu,  "Subtract mean",  f"x − μ      μ={mu:.2f}",
+              ACCENT1,  2)
+    draw_step(axes2[2], x_norm,    "Divide by std",  f"(x−μ)/√(σ²+ε)   σ={np.sqrt(var):.2f}",
+              ACCENT3, 3)
+    draw_step(axes2[3], x_out,     "Scale & shift",  f"γ·x̂ + β      γ={gamma}, β={beta}",
+              ACCENT4, 4)
+    
+    fig2.suptitle(
+        f"{highlight}:   {raw[hi]:.2f}  →  {raw[hi]-mu:.2f}"
+        f"  →  {x_norm[hi]:.2f}  →  {x_out[hi]:.2f}",
+        color="#ff6584", fontsize=10, y=1.02
+    )
+    fig2.tight_layout(pad=1.5)
+    apply_dark_theme(fig2, axes2)
     st.image(fig_to_img(fig2), use_container_width=True)
-
-    # ── Normalisation axis diagram ─────────────────────────────
-    st.markdown("#### Which axes does each method normalise over?")
-    fig3, ax_diag = plt.subplots(1, 1, figsize=(10, 2.5), facecolor=DARK_BG)
-    ax_diag.set_facecolor(DARK_BG)
-    ax_diag.axis("off")
-
-    methods_info = [
-        ("Batch Norm",    "N axis\n(per C,H,W)", ACCENT1, "Small ε OK\nBad: small N"),
-        ("Layer Norm",    "C,H,W axes\n(per N)", ACCENT2, "Good: small N\nNLP/Transformers"),
-        ("Instance Norm", "H,W axes\n(per N,C)", ACCENT3, "Style transfer\nSmall batches"),
-        ("Group Norm",    "C/G,H,W\n(per N,G)", ACCENT4, "Detection/Seg\nAny batch size"),
-    ]
-    for k, (name, axes_lbl, clr, note) in enumerate(methods_info):
-        xpos = 0.1 + k * 0.23
-        rect = plt.Rectangle((xpos, 0.2), 0.19, 0.6,
-                              facecolor=clr + "22", edgecolor=clr, lw=1.5,
-                              transform=ax_diag.transAxes)
-        ax_diag.add_patch(rect)
-        ax_diag.text(xpos + 0.095, 0.85, name, ha="center", va="top",
-                     color=clr, fontsize=9, fontweight="bold",
-                     transform=ax_diag.transAxes)
-        ax_diag.text(xpos + 0.095, 0.58, axes_lbl, ha="center", va="top",
-                     color=TEXT_CLR, fontsize=8, transform=ax_diag.transAxes,
-                     linespacing=1.5)
-        ax_diag.text(xpos + 0.095, 0.26, note, ha="center", va="bottom",
-                     color="#6060a0", fontsize=7, transform=ax_diag.transAxes,
-                     linespacing=1.4)
-
-    st.image(fig_to_img(fig3), use_container_width=True)
-
-    # ── Info cards ────────────────────────────────────────────
-    ic1, ic2 = st.columns(2)
-    with ic1:
-        st.markdown("""
-<div class='info-card'>
-<b>Batch Norm</b> computes statistics over the <b>batch dimension</b> per channel.
-It works best with large batch sizes (≥16). With small batches, estimates of
-μ and σ² become noisy, degrading performance.
-At inference it uses <b>running statistics</b> collected during training.
+ 
+    # ── Numeric trace cards ────────────────────────────────────
+    st.markdown(f"#### Tracing **{highlight}** = `{raw[hi]:.4f}` through each step")
+    t1, t2, t3, t4 = st.columns(4)
+ 
+    t1.markdown(f"""<div class='info-card'>
+<b>① Raw</b><br>
+<code>{raw[hi]:.4f}</code>
 </div>""", unsafe_allow_html=True)
-    with ic2:
-        st.markdown("""
-<div class='info-card'>
-<b>Layer Norm</b> normalises over the feature dimensions <em>for each sample independently</em>,
-making it immune to batch-size effects. This is why it became the default in Transformers
-(BERT, GPT, ViT). <b>Instance Norm</b> is the per-channel version used in style transfer,
-preserving intra-channel spatial statistics.
+ 
+    t2.markdown(f"""<div class='info-card'>
+<b>② Subtract μ</b><br>
+<code>{raw[hi]:.4f} − {mu:.4f}</code><br>
+= <code>{raw[hi] - mu:.4f}</code>
 </div>""", unsafe_allow_html=True)
+ 
+    t3.markdown(f"""<div class='info-card'>
+<b>③ Divide by √(σ²+ε)</b><br>
+<code>{raw[hi]-mu:.4f} / √({var:.4f} + {eps:.0e})</code><br>
+= <code>{raw[hi]-mu:.4f} / {np.sqrt(var+eps):.4f}</code><br>
+= <code>{x_norm[hi]:.4f}</code>
+</div>""", unsafe_allow_html=True)
+ 
+    t4.markdown(f"""<div class='info-card'>
+<b>④ Scale & shift</b><br>
+<code>{gamma} × {x_norm[hi]:.4f} + {beta}</code><br>
+= <code>{x_out[hi]:.4f}</code>
+</div>""", unsafe_allow_html=True)
+ 
+    # ── Epsilon explainer ──────────────────────────────────────
+    st.markdown("#### What does ε actually do?")
+    st.markdown(
+        "When all batch values are nearly identical, σ²≈0 and dividing by √σ² "
+        "would cause a numerical explosion. ε sets a safe floor on the denominator."
+    )
+ 
+    eps_vals      = np.logspace(-8, 0, 300)
+    near_zero_var = 1e-6
+    denom         = np.sqrt(near_zero_var + eps_vals)
+ 
+    fig4, ax4 = plt.subplots(figsize=(8, 3), facecolor=DARK_BG)
+    apply_dark_theme(fig4, [ax4])
+    ax4.semilogx(eps_vals, denom, color=ACCENT3, lw=2,
+                 label=r"$\sqrt{\sigma^2 + \varepsilon}$")
+    ax4.axhline(np.sqrt(near_zero_var), color=ACCENT1, lw=1.5, linestyle="--",
+                label=f"√σ² alone ← dangerous (very close to 0)")
+    ax4.set_xlabel("ε  (log scale)", fontsize=9)
+    ax4.set_ylabel(f"Denominator Result", fontsize=9)
+    ax4.set_title("Effect of ε on denominator stability  (σ²=10⁻⁶)",
+                  fontsize=9, color=TEXT_CLR)
+    ax4.legend(fontsize=8, facecolor=CARD_BG, edgecolor=GRID_CLR, labelcolor=TEXT_CLR)
+    fig4.tight_layout()
+    apply_dark_theme(fig4, [ax4])
+    st.image(fig_to_img(fig4), use_container_width=True)
 
 
 # ═══════════════════════════════════════════════════════════════
