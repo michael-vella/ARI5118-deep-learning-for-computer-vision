@@ -26,7 +26,7 @@ Your local setup is finished and you can now run the code.
 |---|---|
 | **further_reading/** | Academic papers that can be used as additonal reading/supporting material to the study notes. |
 | **simulator/** | Streamlit based simulator highlighting the main concepts in pooling, normalisation and activation functions. The app is deployed online and can be accessed from [here](https://mvella-uom-ari5118-deep-learning.streamlit.app/). App can also be cloned and hosted locally - refer to `simulator/README.md` for more information. |
-| **ai_journal.pdf** | TODO |
+| **ai_journal.pdf** | Report showcasing how AI was used in this project. |
 | **quiz_with_rationale.pdf** | PDF explaining the rational behind the correct/incorrect quiz answers. The actual quiz (Google Forms) can be accessed from [here](https://forms.gle/KorA8o9L2ATYVAqC9). |
 | **requirements.txt** | List of packages required for this project (excluding packages required for the simulator as the simulator has a separate `requirements.txt` file). |
 | **slides.pdf** | Slide deck used for the presentation. |
